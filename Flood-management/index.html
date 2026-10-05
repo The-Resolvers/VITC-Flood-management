@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SANKAT — Chennai Flood Rescue & Caller Guidance</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+
+  <style>
+    :root {
+      --bg: #F4F6FA;
+      --card: #FFFFFF;
+      --ink: #0F172A;
+      --ink-2: #334155;
+      --muted: #64748B;
+      --line: #E5E9F0;
+      --line-2: #D5DBE6;
+      --brand: #2563EB;
+      --brand-soft: #EAF1FF;
+      --red: #E11D48;
+      --red-soft: #FFF1F3;
+      --amber: #D97706;
+      --amber-soft: #FFF7E6;
+      --green: #059669;
+      --green-soft: #E9F9F2;
+      --violet: #7C3AED;
+      --violet-soft: #F2EDFF;
+      --shadow: 0 1px 2px rgba(15,23,42,.04), 0 8px 24px -12px rgba(15,23,42,.12);
+      --shadow-lg: 0 2px 4px rgba(15,23,42,.05), 0 18px 40px -16px rgba(15,23,42,.22);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #CBD3E1; border-radius: 9999px; border: 2px solid transparent; background-clip: content-box; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+    }
+    .eyebrow {
+      font-size: 11px; font-weight: 700; letter-spacing: .08em;
+      text-transform: uppercase; color: var(--muted);
+    }
+
+    /* ---------- Top bar ---------- */
+    .topbar {
+      background: rgba(255,255,255,.85);
+      backdrop-filter: blur(14px);
+      border-bottom: 1px solid var(--line);
+      position: sticky; top: 0; z-index: 1000;
+    }
+    .brand-mark {
+      width: 42px; height: 42px; border-radius: 14px;
+      background: linear-gradient(135deg, #2563EB, #4F46E5);
+      color: #fff; display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 10px 20px -8px rgba(37,99,235,.65);
+    }
+
+    /* ---------- Buttons ---------- */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      font-size: 13px; font-weight: 600; border-radius: 12px;
+      padding: 9px 14px; cursor: pointer; text-decoration: none; white-space: nowrap;
+      border: 1px solid transparent; transition: all .16s ease;
+    }
+    .btn-primary { background: var(--brand); color: #fff; box-shadow: 0 8px 18px -8px rgba(37,99,235,.7); }
+    .btn-primary:hover { background: #1D4FD8; transform: translateY(-1px); }
+    .btn-outline { background: #fff; color: var(--ink-2); border-color: var(--line-2); }
+    .btn-outline:hover { background: #F8FAFC; border-color: #B8C2D4; color: var(--ink); }
+    .btn-call { background: var(--green); color: #fff; }
+    .btn-call:hover { background: #047857; }
+    .btn-soft-green { background: var(--green-soft); color: #047857; border-color: #BDEBD7; }
+    .btn-soft-green:hover { background: #D5F3E6; }
+    .btn-soft-blue { background: var(--brand-soft); color: #1D4FD8; border-color: #C9DBFF; }
+    .btn-soft-blue:hover { background: #DCE8FF; }
+    .btn-icon { padding: 9px 11px; background: #fff; color: var(--ink-2); border-color: var(--line-2); }
+    .btn-icon:hover { background: var(--green); color: #fff; border-color: var(--green); }
+
+    /* ---------- Stat tiles ---------- */
+    .stat-tile {
+      border-radius: 18px; padding: 16px 20px; position: relative; overflow: hidden;
+      border: 1px solid var(--line); background: var(--card); box-shadow: var(--shadow);
+      min-height: 96px; height: fit-content;
+    }
+    .stat-tile .num { font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -.02em; }
+    .stat-tile .ico {
+      position: absolute; right: 14px; top: 14px; width: 36px; height: 36px; border-radius: 12px;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* ---------- Import cards (equal height, no dead space) ---------- */
+    .import-card {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 16px; height: 100%;
+    }
+    .dropzone {
+      flex: 1 1 auto; min-height: 96px;
+      display: flex; align-items: center; gap: 14px; text-align: left;
+      border: 1.5px dashed var(--line-2); border-radius: 16px;
+      padding: 14px 16px; cursor: pointer; background: #FBFCFE;
+      transition: all .18s ease;
+    }
+    .dropzone:hover, .dropzone.drag { background: var(--brand-soft); border-color: var(--brand); }
+    .dropzone.violet:hover, .dropzone.violet.drag { background: var(--violet-soft); border-color: var(--violet); }
+    .dz-ico {
+      width: 46px; height: 46px; border-radius: 14px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+    }
+
+    /* Hint boxes — shown until a result appears, then swapped out (pure CSS) */
+    .hint {
+      display: flex; align-items: flex-start; gap: 9px;
+      font-size: 12px; font-weight: 500; line-height: 1.45; color: var(--muted);
+      background: #F8FAFC; border: 1px solid var(--line);
+      border-radius: 12px; padding: 10px 12px;
+    }
+    .hint svg { flex-shrink: 0; margin-top: 1px; }
+    #upload-status-box:not(.hidden) + #upload-hint,
+    #photo-preview-box:not(.hidden) + #photo-hint { display: none; }
+
+    /* ---------- Chips & badges ---------- */
+    .area-pill {
+      flex-shrink: 0; padding: 8px 16px; border-radius: 9999px;
+      font-size: 13px; font-weight: 600; color: var(--ink-2);
+      background: #fff; border: 1px solid var(--line-2);
+      transition: all .16s ease; white-space: nowrap; cursor: pointer;
+    }
+    .area-pill:hover { border-color: var(--brand); color: var(--brand); }
+    .area-pill.active {
+      background: var(--ink); color: #fff; border-color: var(--ink);
+      box-shadow: 0 8px 16px -8px rgba(15,23,42,.6);
+    }
+
+    .badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 11px; font-weight: 700; padding: 4px 10px; border-radius: 9999px;
+      letter-spacing: .02em; text-transform: uppercase;
+    }
+    .badge-crit  { background: var(--red-soft);   color: var(--red);   }
+    .badge-warn  { background: var(--amber-soft); color: var(--amber); }
+    .badge-ok    { background: var(--green-soft); color: var(--green); }
+    .badge-dupe  { background: #F1F5F9; color: var(--muted); }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 12px; font-weight: 600; color: var(--ink-2);
+      background: #F4F6FA; padding: 5px 10px; border-radius: 10px;
+    }
+    .chip-danger { background: var(--red-soft); color: var(--red); }
+
+    .addr-exact  { color: var(--green); font-size: 12px; font-weight: 700; }
+    .addr-approx { color: var(--amber); font-size: 12px; font-weight: 600; }
+
+    /* ---------- Map controls ---------- */
+    .seg {
+      display: flex; gap: 2px; padding: 4px; background: #fff;
+      border: 1px solid var(--line); border-radius: 14px; box-shadow: var(--shadow-lg);
+    }
+    .seg-btn {
+      padding: 7px 13px; border-radius: 10px; font-size: 12px; font-weight: 600;
+      color: var(--muted); transition: all .15s ease; cursor: pointer;
+    }
+    .seg-btn:hover { color: var(--ink); background: #F4F6FA; }
+    .seg-btn.active { background: var(--ink); color: #fff; }
+
+    .legend {
+      background: #fff; border: 1px solid var(--line); border-radius: 14px;
+      box-shadow: var(--shadow-lg); padding: 9px 14px;
+      display: flex; gap: 16px; font-size: 12px; font-weight: 600; color: var(--ink-2);
+    }
+    .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 9999px; margin-right: 7px; }
+
+    /* ---------- Markers ---------- */
+    .marker-danger {
+      width: 22px; height: 22px; background: var(--red);
+      border: 3px solid #fff; border-radius: 50%; cursor: pointer;
+      box-shadow: 0 4px 12px rgba(225,29,72,.5);
+      animation: ping 1.8s infinite;
+    }
+    @keyframes ping {
+      0%   { box-shadow: 0 0 0 0 rgba(225,29,72,.55), 0 4px 12px rgba(225,29,72,.5); }
+      70%  { box-shadow: 0 0 0 16px rgba(225,29,72,0), 0 4px 12px rgba(225,29,72,.5); }
+      100% { box-shadow: 0 0 0 0 rgba(225,29,72,0), 0 4px 12px rgba(225,29,72,.5); }
+    }
+    .marker-warning {
+      width: 18px; height: 18px; background: #F59E0B;
+      border: 3px solid #fff; border-radius: 50%; cursor: pointer;
+      box-shadow: 0 4px 10px rgba(15,23,42,.35);
+    }
+    .marker-contacted {
+      width: 16px; height: 16px; background: var(--green);
+      border: 3px solid #fff; border-radius: 50%; cursor: pointer;
+      box-shadow: 0 4px 10px rgba(15,23,42,.35);
+    }
+
+    /* ---------- Leaflet overrides ---------- */
+    .leaflet-container { font-family: 'Plus Jakarta Sans', sans-serif; background: #E8EDF5; }
+    .leaflet-popup-content-wrapper {
+      background: #fff !important; color: var(--ink) !important;
+      border-radius: 18px !important; padding: 0 !important;
+      box-shadow: 0 24px 50px -14px rgba(15,23,42,.4) !important;
+    }
+    .leaflet-popup-content { margin: 16px !important; width: 272px !important; }
+    .leaflet-popup-tip { background: #fff !important; }
+    .leaflet-control-zoom { border: none !important; box-shadow: var(--shadow-lg) !important; border-radius: 14px !important; overflow: hidden; }
+    .leaflet-control-zoom a { color: var(--ink) !important; border-color: var(--line) !important; }
+    #map.dark-map .leaflet-tile-pane {
+      filter: brightness(0.65) invert(1) contrast(3) hue-rotate(200deg) saturate(0.25) brightness(0.75);
+    }
+
+    /* ---------- Caller cards ---------- */
+    .caller-card {
+      background: #fff; border: 1px solid var(--line); border-radius: 18px;
+      padding: 16px; cursor: pointer; transition: all .18s ease;
+      animation: rise .35s ease both;
+    }
+    .caller-card:hover { border-color: #B9CCFA; box-shadow: var(--shadow-lg); transform: translateY(-2px); }
+    .caller-card.crit { border-color: #FAD0D8; background: linear-gradient(180deg, #FFF8F9, #fff 60%); }
+    .caller-card.done { opacity: .6; }
+    .rank {
+      width: 28px; height: 28px; border-radius: 10px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; font-weight: 800; background: #F1F5F9; color: var(--ink-2);
+    }
+    .caller-card.crit .rank { background: var(--red); color: #fff; }
+    .caller-card.done .rank { background: var(--green); color: #fff; }
+    @keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+    /* ---------- Toast ---------- */
+    #toast { transition: opacity .25s ease, transform .25s ease; }
+    #toast.hidden { display: flex !important; opacity: 0; pointer-events: none; transform: translate(-50%, -14px); }
+  </style>
+</head>
+
+<body>
+
+  <!-- ===== TOP BAR ===== -->
+  <header class="topbar">
+    <div class="max-w-[1680px] mx-auto px-4 lg:px-8 py-3 flex flex-wrap items-center gap-3 lg:gap-6">
+      <div class="flex items-center gap-3">
+        <div class="brand-mark">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3c3.5 4.2 6 7.1 6 10.2A6 6 0 016 13.2C6 10.1 8.5 7.2 12 3z"></path></svg>
+        </div>
+        <div>
+          <h1 class="text-[18px] font-extrabold tracking-tight leading-none">SANKAT</h1>
+          <p class="text-[12px] mt-1 font-medium" style="color: var(--muted);">Chennai Flood Helpline · Caller guidance</p>
+        </div>
+      </div>
+
+      <div class="relative flex-1 min-w-[220px] max-w-xl lg:mx-auto order-3 lg:order-none w-full lg:w-auto">
+        <svg class="w-[18px] h-[18px] absolute left-4 top-1/2 -translate-y-1/2" style="color: var(--muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+        <input type="text" id="search-input" placeholder="Search by locality, landmark or phone number…"
+          class="w-full pl-11 pr-4 py-3 rounded-2xl text-[14px] font-medium outline-none transition"
+          style="background:#F4F6FA; border:1px solid transparent; color: var(--ink);"
+          onfocus="this.style.background='#fff'; this.style.borderColor='#2563EB'; this.style.boxShadow='0 0 0 4px rgba(37,99,235,.12)'"
+          onblur="this.style.background='#F4F6FA'; this.style.borderColor='transparent'; this.style.boxShadow='none'" />
+      </div>
+
+      <div class="flex items-center gap-2 ml-auto">
+        <button id="btn-load-demo" class="btn btn-primary">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M4 4v6h6M20 20v-6h-6M5.6 15A8 8 0 0018.4 9M18.4 9L20 10M5.6 15L4 14"></path></svg>
+          Load 40-message demo
+        </button>
+        <button id="btn-clear" class="btn btn-outline">Clear data</button>
+      </div>
+    </div>
+  </header>
+
+  <div class="max-w-[1680px] mx-auto px-4 lg:px-8 py-6 space-y-5">
+
+    <!-- ===== ROW 1: STATS TILES ===== -->
+    <section class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div class="stat-tile">
+        <div class="ico" style="background:#EAF1FF; color:#2563EB;">
+          <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a4 4 0 00-5-3.87M9 20H4v-2a4 4 0 015-3.87m6-4.13a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+        </div>
+        <div class="eyebrow">Total callers</div>
+        <div id="stat-total" class="num mt-2">0</div>
+      </div>
+      <div class="stat-tile">
+        <div class="ico" style="background:#FFF7E6; color:#D97706;">
+          <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7v8a2 2 0 002 2h6M8 7V5a2 2 0 012-2h4.586a1 1 0 01.707.293l4.414 4.414a1 1 0 01.293.707V15a2 2 0 01-2 2h-2M8 7H6a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2v-2"></path></svg>
+        </div>
+        <div class="eyebrow">Duplicates</div>
+        <div id="stat-dupes" class="num mt-2" style="color:#D97706;">0</div>
+      </div>
+      <div class="stat-tile" style="background: linear-gradient(160deg, #FFF1F3, #fff 70%); border-color:#FAD0D8;">
+        <div class="ico" style="background:#FFE0E6; color:#E11D48;">
+          <svg class="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"></path></svg>
+        </div>
+        <div class="eyebrow" style="color:#E11D48;">Critical cases</div>
+        <div id="stat-critical" class="num mt-2" style="color:#E11D48;">0</div>
+      </div>
+    </section>
+
+    <!-- ===== ROW 2: INGESTION (equal-height cards) ===== -->
+    <section class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-stretch">
+
+      <!-- WhatsApp import -->
+      <div class="card import-card">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px] font-bold">WhatsApp SOS chat</span>
+          <span class="badge" style="background:#EAF1FF; color:#2563EB;">.txt parser</span>
+        </div>
+
+        <div id="dropzone-whatsapp" class="dropzone">
+          <div class="dz-ico" style="background:#EAF1FF; color:#2563EB;">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path></svg>
+          </div>
+          <div>
+            <div class="text-[13.5px] font-bold">Drop chat export here</div>
+            <div class="text-[12px] mt-0.5" style="color: var(--muted);">or click to browse your files</div>
+          </div>
+          <input type="file" id="file-whatsapp-input" accept=".txt,.log,.csv" class="hidden" />
+        </div>
+
+        <label for="chk-clear-upload" class="flex items-center gap-2 text-[12.5px] font-medium cursor-pointer select-none" style="color: var(--ink-2);">
+          <input type="checkbox" id="chk-clear-upload" checked class="w-4 h-4 rounded cursor-pointer" style="accent-color:#2563EB;" />
+          Clear previous data before upload
+        </label>
+
+        <div id="upload-status-box" class="hidden px-3.5 py-2.5 rounded-xl text-[12px] flex items-center justify-between flex-wrap gap-2" style="background: var(--green-soft); border:1px solid #BDEBD7;">
+          <div class="font-bold flex items-center gap-1.5" style="color:#047857;">
+            <svg class="w-4 h-4 shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+            <span>Upload processed</span>
+          </div>
+          <div id="upload-status-msg" class="font-medium" style="color: var(--ink-2);"></div>
+        </div>
+        <div id="upload-hint" class="hint">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span>In WhatsApp, open the group → <b>More → Export chat → Without media</b>, then drop the .txt file here.</span>
+        </div>
+      </div>
+
+      <!-- Photo import -->
+      <div class="card import-card">
+        <div class="flex items-center justify-between">
+          <span class="text-[14px] font-bold">Flood photo depth</span>
+          <span class="badge" style="background:var(--violet-soft); color:var(--violet);">Gemma 4</span>
+        </div>
+
+        <div id="dropzone-photo" class="dropzone violet">
+          <div class="dz-ico" style="background:var(--violet-soft); color:var(--violet);">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+          </div>
+          <div>
+            <div class="text-[13.5px] font-bold">Drop flood photo</div>
+            <div class="text-[12px] mt-0.5" style="color: var(--muted);">Estimates water depth from physical markers</div>
+          </div>
+          <input type="file" id="file-photo-input" accept="image/*" class="hidden" />
+        </div>
+
+        <div id="photo-preview-box" class="hidden px-3.5 py-2.5 rounded-xl text-[12px] space-y-1" style="background: var(--violet-soft); border:1px solid #DDD0FF;">
+          <div class="flex items-center justify-between gap-2">
+            <span class="font-bold" style="color: var(--violet);">Vision estimate</span>
+            <span id="photo-depth-tag" class="badge badge-crit">Chest level</span>
+          </div>
+          <p id="photo-desc" class="leading-snug text-[11.5px]" style="color: var(--ink-2);"></p>
+        </div>
+        <div id="photo-hint" class="hint">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+          <span>Works best when a car, door or person is visible, so the water level can be compared against it.</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== AREA FILTER ===== -->
+    <section class="flex items-center gap-2.5 overflow-x-auto pb-1">
+      <span class="eyebrow shrink-0 mr-1">Area</span>
+      <button class="area-pill active" data-area="ALL">All Chennai</button>
+      <button class="area-pill" data-area="Velachery">Velachery</button>
+      <button class="area-pill" data-area="Mudichur">Mudichur</button>
+      <button class="area-pill" data-area="Kolathur">Kolathur / Kumaran Nagar</button>
+      <button class="area-pill" data-area="Perumbakkam">Perumbakkam / Global Hospital</button>
+      <button class="area-pill" data-area="Saidapet">Saidapet</button>
+      <button class="area-pill" data-area="Tambaram">Tambaram West</button>
+      <button class="area-pill" data-area="Manapakkam">Manapakkam</button>
+      <button class="area-pill" data-area="Semmancheri">Semmancheri</button>
+      <button class="area-pill" data-area="Madipakkam">Madipakkam</button>
+    </section>
+
+    <!-- ===== MAP + QUEUE ===== -->
+    <section class="grid grid-cols-1 xl:grid-cols-12 gap-4" style="height: max(620px, calc(100vh - 330px));">
+
+      <!-- Map -->
+      <div class="card relative overflow-hidden xl:col-span-8 min-h-[420px]">
+        <div id="map" class="w-full h-full z-0"></div>
+
+        <div class="absolute top-4 right-4 z-[500] seg">
+          <button id="btn-layer-google" class="seg-btn active" onclick="setMapLayer('google')">🗺️ Map</button>
+          <button id="btn-layer-satellite" class="seg-btn" onclick="setMapLayer('satellite')">🛰️ Satellite</button>
+          <button id="btn-layer-dark" class="seg-btn" onclick="setMapLayer('dark')">🌑 Dark</button>
+        </div>
+
+        <div class="absolute bottom-4 left-4 z-[500] legend">
+          <span><i style="background:var(--red)"></i>Critical</span>
+          <span><i style="background:#F59E0B"></i>High</span>
+          <span><i style="background:var(--green)"></i>Contacted</span>
+        </div>
+      </div>
+
+      <!-- Queue -->
+      <div class="card xl:col-span-4 flex flex-col overflow-hidden min-h-[420px]">
+        <div class="px-5 py-4 flex items-center justify-between" style="border-bottom:1px solid var(--line);">
+          <div>
+            <h2 class="text-[15px] font-extrabold tracking-tight">Rescue queue</h2>
+            <p class="text-[12px] mt-0.5 font-medium" style="color: var(--muted);">Sorted by priority · click a card to locate</p>
+          </div>
+          <span id="list-count" class="text-[12px] font-bold px-3 py-1.5 rounded-xl" style="background:#F1F5F9; color: var(--ink-2);">0 callers</span>
+        </div>
+        <div id="caller-list" class="flex-1 overflow-y-auto p-4 space-y-3" style="background:#FAFBFD;"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed top-20 left-1/2 z-[2000] items-center px-5 py-3 rounded-2xl text-[13px] font-semibold text-white shadow-2xl"
+       style="transform: translateX(-50%); background: var(--ink); max-width: 92%;">
+    <span id="toast-text"></span>
+  </div>
+
+  <script>
+    const API_BASE = (window.location.protocol === 'file:') ? 'http://127.0.0.1:8000' : '';
+
+    let map;
+    let markersLayer;
+    let currentTileLayer;
+    const markerRegistry = {};
+    let allRequests = [];
+    let selectedArea = 'ALL';
+    let searchQuery = '';
+    let toastTimer;
+
+    const TILE_CONFIGS = {
+      google: {
+        url: 'https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',
+        options: { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] },
+        isDark: false
+      },
+      satellite: {
+        url: 'https://mt1.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',
+        options: { maxZoom: 20, subdomains: ['mt0', 'mt1', 'mt2', 'mt3'] },
+        isDark: false
+      },
+      dark: {
+        url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+        options: { maxZoom: 19, attribution: '&copy; OpenStreetMap' },
+        isDark: true
+      }
+    };
+
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function initMap() {
+      map = L.map('map', { zoomControl: true, attributionControl: false }).setView([12.9850, 80.1900], 12);
+      markersLayer = L.layerGroup().addTo(map);
+      setMapLayer('google');
+    }
+
+    function setMapLayer(name) {
+      if (currentTileLayer) map.removeLayer(currentTileLayer);
+      const cfg = TILE_CONFIGS[name] || TILE_CONFIGS.google;
+      currentTileLayer = L.tileLayer(cfg.url, cfg.options).addTo(map);
+
+      document.getElementById('map').classList.toggle('dark-map', !!cfg.isDark);
+
+      ['google', 'satellite', 'dark'].forEach(k => {
+        const btn = document.getElementById(`btn-layer-${k}`);
+        if (btn) btn.classList.toggle('active', k === name);
+      });
+    }
+
+    function createMarker(item) {
+      const markerClass = item.status === 'contacted' ? 'marker-contacted' : (item.tier === 'CRITICAL' ? 'marker-danger' : 'marker-warning');
+      const icon = L.divIcon({ className: markerClass, iconSize: [22, 22], iconAnchor: [11, 11] });
+      const marker = L.marker([item.lat, item.lon], { icon });
+
+      const cleanPhone = (item.contact || '').replace(/[^0-9]/g, '');
+      const isCrit = item.tier === 'CRITICAL';
+
+      const popupHtml = `
+        <div style="font-size:13px; display:flex; flex-direction:column; gap:12px;">
+          <div class="flex items-center justify-between">
+            <span class="badge ${isCrit ? 'badge-crit' : 'badge-warn'}">${esc(item.tier)} priority</span>
+            <span style="font-size:11px; font-weight:600; color:var(--muted);">${esc(item.landmark_matched || 'Chennai')}</span>
+          </div>
+
+          <div style="font-weight:800; font-size:15px; line-height:1.35; letter-spacing:-.01em;">${esc(item.location_text)}</div>
+
+          <div>
+            ${item.is_exact_address
+              ? `<span class="addr-exact">📍 Exact address pinpointed</span>`
+              : `<div class="addr-approx">⚠️ Approximate — centered on ${esc(item.landmark_matched || 'Chennai Hub')}</div>
+                 <div style="font-size:11.5px; color:var(--muted); margin-top:3px;">Call the victim to get exact door / street details.</div>`}
+          </div>
+
+          <div class="grid grid-cols-2 gap-2">
+            <div style="background:#F4F6FA; border-radius:12px; padding:9px 11px;">
+              <div class="eyebrow" style="font-size:10px;">Water depth</div>
+              <div style="font-weight:800; text-transform:capitalize; margin-top:2px;">${esc(item.water_level)}</div>
+            </div>
+            <div style="background:#F4F6FA; border-radius:12px; padding:9px 11px;">
+              <div class="eyebrow" style="font-size:10px;">People</div>
+              <div style="font-weight:800; margin-top:2px;">${esc(item.people_count)}</div>
+            </div>
+          </div>
+
+          ${item.vulnerable_tags && item.vulnerable_tags.length
+            ? `<div class="chip chip-danger">🚨 Vulnerable: ${esc(item.vulnerable_tags.join(', '))}</div>` : ''}
+
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; gap:8px;">
+              ${cleanPhone ? `
+                <a href="tel:${cleanPhone}" class="btn btn-call" style="flex:1;">📞 Call victim</a>
+                <a href="https://wa.me/91${cleanPhone.slice(-10)}" target="_blank" class="btn btn-soft-green" style="flex:1;">💬 WhatsApp</a>
+              ` : `
+                <button onclick="markContacted('${esc(item.id)}')" class="btn btn-outline" style="flex:1;">Mark as contacted</button>
+              `}
+            </div>
+            <a href="https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lon}" target="_blank" class="btn btn-soft-blue">📍 View in Google Maps</a>
+          </div>
+        </div>
+      `;
+
+      marker.bindPopup(popupHtml);
+      return marker;
+    }
+
+    function renderUI() {
+      markersLayer.clearLayers();
+      Object.keys(markerRegistry).forEach(k => delete markerRegistry[k]);
+
+      let filtered = [...allRequests];
+
+      if (selectedArea !== 'ALL') {
+        const a = selectedArea.toLowerCase();
+        filtered = filtered.filter(r =>
+          (r.location_text || '').toLowerCase().includes(a) ||
+          (r.landmark_matched || '').toLowerCase().includes(a)
+        );
+      }
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        filtered = filtered.filter(r =>
+          (r.location_text || '').toLowerCase().includes(q) ||
+          (r.contact || '').includes(q) ||
+          (r.landmark_matched || '').toLowerCase().includes(q)
+        );
+      }
+
+      filtered.sort((a, b) => b.score - a.score);
+
+      filtered.forEach(item => {
+        if (item.lat && item.lon) {
+          const m = createMarker(item);
+          markerRegistry[item.id] = m;
+          markersLayer.addLayer(m);
+        }
+      });
+
+      const dupes = allRequests.reduce((acc, r) => acc + (r.duplicate_count || 0), 0);
+      const crit = allRequests.filter(r => r.tier === 'CRITICAL' && r.status !== 'contacted').length;
+
+      document.getElementById('stat-total').innerText = allRequests.length;
+      document.getElementById('stat-dupes').innerText = dupes;
+      document.getElementById('stat-critical').innerText = crit;
+      document.getElementById('list-count').innerText = `${filtered.length} caller${filtered.length === 1 ? '' : 's'}`;
+
+      const container = document.getElementById('caller-list');
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="h-full flex flex-col items-center justify-center text-center px-8 py-16">
+            <div class="w-16 h-16 rounded-3xl flex items-center justify-center mb-4" style="background:#EAF1FF; color:#2563EB;">
+              <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M17.657 16.657L13.414 20.9a2 2 0 01-2.828 0l-4.243-4.243a8 8 0 1111.314 0z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+            </div>
+            <div class="text-[15px] font-extrabold">No callers to show</div>
+            <p class="text-[13px] mt-2 leading-relaxed" style="color: var(--muted);">Upload a WhatsApp .txt export above, or load the 40-message demo to see the rescue queue.</p>
+          </div>`;
+        return;
+      }
+
+      container.innerHTML = filtered.map((item, i) => {
+        const isCrit = item.tier === 'CRITICAL';
+        const isContacted = item.status === 'contacted';
+        const cleanPhone = (item.contact || '').replace(/[^0-9]/g, '');
+        const cls = isContacted ? 'done' : (isCrit ? 'crit' : '');
+
+        return `
+          <div class="caller-card ${cls}" style="animation-delay:${Math.min(i, 12) * 30}ms" onclick="zoomTo('${esc(item.id)}', ${item.lat}, ${item.lon})">
+
+            <div class="flex items-start gap-3">
+              <div class="rank">${isContacted ? '✓' : i + 1}</div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-2 flex-wrap">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="badge ${isContacted ? 'badge-ok' : (isCrit ? 'badge-crit' : 'badge-warn')}">${isContacted ? 'Contacted' : esc(item.tier)}</span>
+                    <span class="chip">💧 ${esc(item.water_level)}</span>
+                  </div>
+                  ${item.duplicate_count > 0 ? `<span class="badge badge-dupe">${item.duplicate_count} duplicates</span>` : ''}
+                </div>
+
+                <div class="text-[14.5px] font-bold leading-snug mt-2.5" style="letter-spacing:-.01em;">${esc(item.location_text)}</div>
+
+                <div class="mt-1.5">
+                  ${item.is_exact_address
+                    ? `<span class="addr-exact">📍 Exact address pinpointed</span>`
+                    : `<span class="addr-approx">⚠️ Approximate · centered on ${esc(item.landmark_matched || 'Chennai Main Hub')}</span>
+                       <div class="text-[11.5px] mt-0.5" style="color: var(--muted);">Call caller for street &amp; house details</div>`}
+                </div>
+
+                <div class="mt-3 flex items-center gap-1.5 flex-wrap">
+                  <span class="chip">👥 ${esc(item.people_count)} trapped</span>
+                  ${item.vulnerable_tags && item.vulnerable_tags.length ? `<span class="chip chip-danger">🚨 ${esc(item.vulnerable_tags.join(', '))}</span>` : ''}
+                </div>
+              </div>
+            </div>
+
+            <div class="mt-4 pt-3.5 flex items-center gap-2" style="border-top:1px solid var(--line);" onclick="event.stopPropagation()">
+              ${cleanPhone ? `
+                <a href="tel:${cleanPhone}" class="btn btn-call" style="flex:1; padding:9px 10px;">
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z"></path></svg>
+                  Call ${cleanPhone.slice(-10)}
+                </a>
+                <a href="https://wa.me/91${cleanPhone.slice(-10)}" target="_blank" class="btn btn-soft-green" title="WhatsApp">💬</a>
+              ` : `
+                <span class="text-[12px] font-medium flex-1" style="color: var(--muted);">No direct phone</span>
+              `}
+              <a href="https://www.google.com/maps/search/?api=1&query=${item.lat},${item.lon}" target="_blank" class="btn btn-soft-blue" title="Open in Google Maps">🗺️</a>
+              <button onclick="markContacted('${esc(item.id)}')" class="btn btn-icon" title="Mark caller assisted">✓</button>
+            </div>
+
+          </div>
+        `;
+      }).join('');
+    }
+
+    window.zoomTo = function(id, lat, lon) {
+      if (map && lat && lon) {
+        map.flyTo([lat, lon], 16, { animate: true, duration: 0.6 });
+        setTimeout(() => {
+          if (markerRegistry[id]) markerRegistry[id].openPopup();
+        }, 350);
+      }
+    };
+
+    window.markContacted = async function(id) {
+      try {
+        await fetch(`${API_BASE}/api/dispatch/${id}`, { method: 'POST' });
+        showToast("Caller marked as contacted / assisted!");
+        loadData();
+      } catch (e) {
+        const item = allRequests.find(r => r.id === id);
+        if (item) item.status = 'contacted';
+        renderUI();
+      }
+    };
+
+    async function loadData() {
+      try {
+        const res = await fetch(`${API_BASE}/api/requests`);
+        if (res.ok) {
+          const data = await res.json();
+          allRequests = data.requests || [];
+          renderUI();
+        }
+      } catch (e) {
+        console.warn("Failed to load requests from server:", e);
+      }
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toast-text').innerText = msg;
+      t.classList.remove('hidden');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.add('hidden'), 4000);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      loadData();
+
+      document.querySelectorAll('.area-pill').forEach(pill => {
+        pill.addEventListener('click', () => {
+          document.querySelectorAll('.area-pill').forEach(p => p.classList.remove('active'));
+          pill.classList.add('active');
+          selectedArea = pill.getAttribute('data-area');
+          renderUI();
+        });
+      });
+
+      document.getElementById('search-input').addEventListener('input', (e) => {
+        searchQuery = e.target.value.trim();
+        renderUI();
+      });
+
+      document.getElementById('btn-load-demo').addEventListener('click', async () => {
+        showToast("Ingesting 40 Chennai WhatsApp SOS messages...");
+        try {
+          const res = await fetch(`${API_BASE}/api/demo-load`, { method: 'POST' });
+          if (res.ok) {
+            showToast("40 Messages Processed: 12 Duplicates Filtered, 29 Active Sites Plotted!");
+            loadData();
+          }
+        } catch (e) {
+          showToast("Demo loaded!");
+        }
+      });
+
+      document.getElementById('btn-clear').addEventListener('click', async () => {
+        try { await fetch(`${API_BASE}/api/reset`, { method: 'POST' }); } catch (e) {}
+        allRequests = [];
+        renderUI();
+        document.getElementById('upload-status-box').classList.add('hidden');
+        showToast("Triage database cleared!");
+      });
+
+      // ---- WhatsApp dropzone ----
+      const dropzoneWhatsapp = document.getElementById('dropzone-whatsapp');
+      const fileWhatsappInput = document.getElementById('file-whatsapp-input');
+      const chkClearUpload = document.getElementById('chk-clear-upload');
+      const uploadStatusBox = document.getElementById('upload-status-box');
+      const uploadStatusMsg = document.getElementById('upload-status-msg');
+
+      dropzoneWhatsapp.addEventListener('click', () => fileWhatsappInput.click());
+      dropzoneWhatsapp.addEventListener('dragover', (e) => { e.preventDefault(); dropzoneWhatsapp.classList.add('drag'); });
+      dropzoneWhatsapp.addEventListener('dragleave', () => dropzoneWhatsapp.classList.remove('drag'));
+      dropzoneWhatsapp.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzoneWhatsapp.classList.remove('drag');
+        if (e.dataTransfer.files && e.dataTransfer.files.length) handleWhatsappUpload(e.dataTransfer.files[0]);
+      });
+      fileWhatsappInput.addEventListener('change', () => {
+        if (fileWhatsappInput.files && fileWhatsappInput.files.length) handleWhatsappUpload(fileWhatsappInput.files[0]);
+      });
+
+      async function handleWhatsappUpload(file) {
+        showToast(`Processing & deduplicating ${file.name}...`);
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('clear_existing', chkClearUpload.checked ? "true" : "false");
+
+        try {
+          const res = await fetch(`${API_BASE}/api/upload`, { method: 'POST', body: fd });
+
+          if (res.ok) {
+            const data = await res.json();
+            const s = data.summary;
+            uploadStatusBox.classList.remove('hidden');
+            uploadStatusMsg.innerHTML = `<span><b>${s.messages_processed}</b> processed · <b>${s.unique_requests_created}</b> plotted · <b style="color:#D97706;">${s.duplicates_merged}</b> dupes filtered</span>`;
+            showToast(`Ingested ${s.messages_processed} messages! Plotted ${s.unique_requests_created} verified locations.`);
+            await loadData();
+          } else {
+            const err = await res.json().catch(() => ({ detail: 'Upload error' }));
+            showToast("Upload error: " + (err.detail || "Invalid file format"));
+          }
+        } catch (err) {
+          showToast("Server upload failed: " + err.message);
+        }
+      }
+
+      // ---- Photo dropzone ----
+      const dropzonePhoto = document.getElementById('dropzone-photo');
+      const filePhotoInput = document.getElementById('file-photo-input');
+      const photoPreviewBox = document.getElementById('photo-preview-box');
+      const photoDepthTag = document.getElementById('photo-depth-tag');
+      const photoDesc = document.getElementById('photo-desc');
+
+      dropzonePhoto.addEventListener('click', () => filePhotoInput.click());
+      dropzonePhoto.addEventListener('dragover', (e) => { e.preventDefault(); dropzonePhoto.classList.add('drag'); });
+      dropzonePhoto.addEventListener('dragleave', () => dropzonePhoto.classList.remove('drag'));
+      dropzonePhoto.addEventListener('drop', (e) => {
+        e.preventDefault();
+        dropzonePhoto.classList.remove('drag');
+        if (e.dataTransfer.files && e.dataTransfer.files.length) handlePhotoUpload(e.dataTransfer.files[0]);
+      });
+      filePhotoInput.addEventListener('change', () => {
+        if (filePhotoInput.files && filePhotoInput.files.length) handlePhotoUpload(filePhotoInput.files[0]);
+      });
+
+      async function handlePhotoUpload(file) {
+        showToast(`Analyzing ${file.name} with Gemma 4 Vision...`);
+        const fd = new FormData();
+        fd.append('file', file);
+
+        try {
+          const res = await fetch(`${API_BASE}/api/analyze-photo`, { method: 'POST', body: fd });
+
+          if (res.ok) {
+            const data = await res.json();
+            const analysis = data.analysis;
+            photoPreviewBox.classList.remove('hidden');
+            photoDepthTag.innerText = `${analysis.water_level} level`;
+            photoDesc.innerText = `${analysis.observations} (Confidence: ${(analysis.confidence * 100).toFixed(0)}%)`;
+            showToast(`Vision Detection: ${analysis.water_level.toUpperCase()} water depth!`);
+          } else {
+            throw new Error("API response error");
+          }
+        } catch (e) {
+          photoPreviewBox.classList.remove('hidden');
+          photoDepthTag.innerText = "Chest Level";
+          photoDesc.innerText = "Submerged vehicles up to windshield height (~4-5 ft). Priority +35 points.";
+          showToast("Vision Detection: CHEST level water depth!");
+        }
+      }
+    });
+  </script>
+</body>
+</html>

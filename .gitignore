@@ -1,2 +1,7 @@
 .env
-Flood-management/.env
+**/.env
+*.env
+__pycache__/
+**/__pycache__/
+*.db
+.pytest_cache/
